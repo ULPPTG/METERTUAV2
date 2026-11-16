@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>METER TUA - ULP PETUNG</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<style>
+:root{
+  --bg:#0f172a;--panel:#1e293b;--panel2:#273449;--line:#334155;--txt:#e2e8f0;--mut:#94a3b8;--acc:#38bdf8;
+  --BELUM:#94a3b8;--SURVEY:#38bdf8;--TERJADWAL:#fbbf24;--SELESAI:#4ade80;--KENDALA:#f87171;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif}
+header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{margin:0;font-size:18px}
+header small{color:var(--mut)}
+header .sp{flex:1}
+button,select,input,textarea{font:inherit;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:7px 10px}
+button{cursor:pointer}
+button:hover{border-color:var(--acc)}
+button.pri{background:var(--acc);color:#0b1220;border-color:var(--acc);font-weight:600}
+#demo{display:none;background:#78350f;color:#fde68a;padding:8px 18px;font-size:13px}
+main{padding:16px 18px;max-width:1400px;margin:auto}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer}
+.kpi b{display:block;font-size:22px}
+.kpi span{color:var(--mut);font-size:12px}
+.kpi.on{border-color:var(--acc)}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.filters input{flex:1;min-width:200px}
+.tabs{display:flex;gap:4px;margin-bottom:12px;border-bottom:1px solid var(--line)}
+.tab{padding:8px 14px;border:none;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--mut)}
+.tab.on{color:var(--txt);border-bottom-color:var(--acc)}
+.view{display:none}.view.on{display:block}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mut);font-weight:600;font-size:12px;position:sticky;top:0;background:var(--bg)}
+tr.row{cursor:pointer}
+tr.row:hover{background:var(--panel)}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;color:#0b1220}
+.mut{color:var(--mut)}
+#map{height:68vh;border-radius:8px;border:1px solid var(--line)}
+.bar{height:10px;border-radius:5px;background:var(--panel2);overflow:hidden;min-width:80px}
+.bar i{display:block;height:100%}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.card h3{margin:0 0 8px;font-size:14px}
+.more{margin:12px 0;text-align:center}
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:1000;overflow:auto;padding:20px}
+#modal .box{background:var(--panel);border:1px solid var(--line);border-radius:10px;max-width:640px;margin:auto;padding:16px}
+#modal h2{margin:0 0 2px;font-size:17px}
+.dl{display:grid;grid-template-columns:110px 1fr;gap:4px 10px;margin:12px 0}
+.dl dt{color:var(--mut)}.dl dd{margin:0}
+.foto{width:100%;max-height:340px;object-fit:contain;background:#000;border-radius:6px;margin-bottom:8px}
+.frm{display:grid;gap:8px;margin-top:10px}
+.frm label{color:var(--mut);font-size:12px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.msg{font-size:13px;min-height:18px}
+.leaflet-popup-content-wrapper{background:var(--panel);color:var(--txt)}
+.leaflet-popup-tip{background:var(--panel)}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>METER TUA</h1><small>ULP Petung - monitoring meter prabayar dan pascabayar umur tua</small></div>
+  <div class="sp"></div>
+  <small id="updated" class="mut"></small>
+  <button id="btnReload">Muat ulang</button>
+</header>
+<div id="demo">MODE DEMO: data contoh. Isi <b>API_URL</b> di index.html dengan URL web app Apps Script untuk memakai data asli.</div>
+
+<main>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="filters">
+    <input id="q" placeholder="Cari IDPEL / nama / alamat / nomor meter">
+    <select id="fRbm"><option value="">Semua RBM</option></select>
+    <select id="fJenis">
+      <option value="">Semua jenis</option>
+      <option value="PRABAYAR">Prabayar</option>
+      <option value="PASCABAYAR">Pascabayar</option>
+    </select>
+    <select id="fKat"><option value="">Semua umur</option></select>
+    <select id="fFoto">
+      <option value="">Foto: semua</option>
+      <option value="ada">Ada foto</option>
+      <option value="tidak">Belum ada foto</option>
+    </select>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" data-v="list">Daftar</button>
+    <button class="tab" data-v="map">Peta</button>
+    <button class="tab" data-v="rekap">Rekap</button>
+  </div>
+
+  <section class="view on" id="v-list">
+    <div id="count" class="mut" style="margin-bottom:6px"></div>
+    <table>
+      <thead><tr><th>IDPEL</th><th>Nama</th><th>RBM</th><th>Jenis</th><th>No. meter</th><th>Umur</th><th>Status</th><th>Update</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="more"><button id="btnMore">Muat lebih banyak</button></div>
+  </section>
+
+  <section class="view" id="v-map"><div id="map"></div></section>
+
+  <section class="view" id="v-rekap">
+    <div class="grid2">
+      <div class="card"><h3>Per status</h3><div id="rkStatus"></div></div>
+      <div class="card"><h3>Per jenis</h3><div id="rkJenis"></div></div>
+      <div class="card"><h3>Per kategori umur</h3><div id="rkUmur"></div></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h3>Per RBM</h3>
+      <table><thead><tr><th>RBM</th><th>Total</th><th>Selesai</th><th>Kendala</th><th>Progres</th></tr></thead><tbody id="rkRbm"></tbody></table>
+    </div>
+  </section>
+</main>
+
+<div id="modal"><div class="box" id="box"></div></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+/* ====== KONFIGURASI ====== */
+var CONFIG = {
+  API_URL: 'https://script.google.com/macros/s/AKfycbwmHzrqsX8nK3StR1KQYE15LNcPaVxLLh0KoGehBU_iYcWzEoXGVpSfxawIBS5YX-LQUQ/exec',          // tempel URL web app Apps Script (berakhiran /exec)
+  TAHUN_SEKARANG: new Date().getFullYear()
+};
+var STATUS = ['BELUM','SURVEY','TERJADWAL','SELESAI','KENDALA'];
+var PAGE = 100;
+
+/* ====== STATE ====== */
+var DATA = [], FIL = [], shown = PAGE, kpiStatus = '';
+var map = null, cluster = null;
+
+/* ====== UTIL ====== */
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function num(v){var n=parseFloat(String(v==null?'':v).replace(',','.'));return isFinite(n)?n:null;}
+function driveId(u){
+  u=String(u||'');var m=u.match(/\/d\/([\w-]+)/)||u.match(/[?&]id=([\w-]+)/);
+  return m?m[1]:'';
+}
+function fotoUrl(u){
+  var id=driveId(u);
+  if(id) return 'https://drive.google.com/thumbnail?id='+id+'&sz=w1000';
+  return /^https?:/.test(u||'')?u:'';
+}
+function umur(r){
+  var t=parseInt(r['TAHUN METER'],10);
+  return t>1900?CONFIG.TAHUN_SEKARANG-t:null;
+}
+function kat(r){
+  var k=String(r['KATEGORI UMUR']||'').trim();
+  if(k) return k;
+  var u=umur(r);
+  if(u===null) return 'Lainnya';
+  if(u>30) return 'Lebih dari 30 th';
+  var lo=Math.floor((u-1)/5)*5+1;
+  return u<1?'Lainnya':lo+' - '+(lo+4)+' th';
+}
+function katKey(k){var m=String(k).match(/\d+/);return m?parseInt(m[0],10):9999;}
+function jenis(r){
+  var j=String(r.JENIS||'').toUpperCase();
+  if(j.indexOf('PRA')===0) return 'PRABAYAR';
+  if(j.indexOf('PASCA')===0) return 'PASCABAYAR';
+  return '';
+}
+function st(r){return STATUS.indexOf(r.STATUS)>=0?r.STATUS:'BELUM';}
+function badge(s){return '<span class="badge" style="background:var(--'+s+')">'+s+'</span>';}
+
+/* ====== DATA ====== */
+function demoData(){
+  var out=[],names=['Budi','Siti','Agus','Dewi','Rahmat','Wati','Joko','Lina'];
+  for(var i=0;i<60;i++){
+    out.push({
+      'IDPEL':'5'+String(2000000000+i*7919),'NAMA':names[i%8]+' '+(i+1),
+      'ALAMAT':'Jl. Contoh No. '+(i+1)+', Petung','RBM':'PTG'+(1+i%4)+'0'+(1+i%3),
+      'NOMOR METER':'14'+String(100000000+i*131),'TAHUN METER':String(i%2?1992+i%6:2005+i%4),
+      'LAT':String(-1.23+(Math.random()-.5)*.1),'LNG':String(116.70+(Math.random()-.5)*.1),
+      'JENIS':i%2?'PRABAYAR':'PASCABAYAR','FOTO':'','STATUS':STATUS[i%7<5?i%7%5:0],'KETERANGAN':'','PETUGAS':'','TGL UPDATE':''
+    });
+  }
+  return out;
+}
+function load(){
+  document.getElementById('demo').style.display=CONFIG.API_URL?'none':'block';
+  if(!CONFIG.API_URL){DATA=demoData();afterLoad();return;}
+  document.getElementById('updated').textContent='memuat...';
+  fetch(CONFIG.API_URL+'?t='+Date.now()).then(function(r){return r.json();}).then(function(j){
+    if(!j.ok) throw new Error(j.error||'gagal');
+    DATA=j.data;afterLoad();
+  }).catch(function(e){
+    document.getElementById('updated').textContent='gagal memuat: '+e.message;
+  });
+}
+function afterLoad(){
+  document.getElementById('updated').textContent='diperbarui '+new Date().toLocaleTimeString('id-ID');
+  var rbm={};DATA.forEach(function(r){if(r.RBM)rbm[r.RBM]=1;});
+  var sel=document.getElementById('fRbm'),cur=sel.value;
+  sel.innerHTML='<option value="">Semua RBM</option>'+Object.keys(rbm).sort().map(function(x){return '<option>'+esc(x)+'</option>';}).join('');
+  sel.value=cur;
+  var kt={};DATA.forEach(function(r){kt[kat(r)]=1;});
+  var sk=document.getElementById('fKat'),ck0=sk.value;
+  sk.innerHTML='<option value="">Semua umur</option>'+Object.keys(kt).sort(function(a,b){return katKey(a)-katKey(b);}).map(function(x){return '<option>'+esc(x)+'</option>';}).join('');
+  sk.value=ck0;
+  renderKpi();applyFilters();
+}
+
+/* ====== FILTER & RENDER ====== */
+function applyFilters(){
+  var q=document.getElementById('q').value.trim().toLowerCase();
+  var jn=document.getElementById('fJenis').value;
+  var rbm=document.getElementById('fRbm').value,k=document.getElementById('fKat').value,f=document.getElementById('fFoto').value;
+  FIL=DATA.filter(function(r){
+    if(kpiStatus&&st(r)!==kpiStatus) return false;
+    if(rbm&&r.RBM!==rbm) return false;
+    if(jn&&jenis(r)!==jn) return false;
+    if(k&&kat(r)!==k) return false;
+    if(f==='ada'&&!(r.FOTO||r['FOTO 2'])) return false;
+    if(f==='tidak'&&(r.FOTO||r['FOTO 2'])) return false;
+    if(q){
+      var h=(r.IDPEL+' '+r.NAMA+' '+r.ALAMAT+' '+r['NOMOR METER']).toLowerCase();
+      if(h.indexOf(q)<0) return false;
+    }
+    return true;
+  });
+  shown=PAGE;renderList();renderRekap();
+  if(map) renderMap();
+}
+function renderKpi(){
+  var c={};STATUS.forEach(function(s){c[s]=0;});
+  DATA.forEach(function(r){c[st(r)]++;});
+  var h='<div class="kpi'+(kpiStatus===''?' on':'')+'" data-s=""><b>'+DATA.length+'</b><span>Total</span></div>';
+  STATUS.forEach(function(s){
+    h+='<div class="kpi'+(kpiStatus===s?' on':'')+'" data-s="'+s+'"><b style="color:var(--'+s+')">'+c[s]+'</b><span>'+s+'</span></div>';
+  });
+  var el=document.getElementById('kpis');el.innerHTML=h;
+  Array.prototype.forEach.call(el.querySelectorAll('.kpi'),function(n){
+    n.onclick=function(){kpiStatus=n.getAttribute('data-s');renderKpi();applyFilters();};
+  });
+}
+function renderList(){
+  var rows=FIL.slice(0,shown);
+  document.getElementById('count').textContent=FIL.length+' pelanggan';
+  document.getElementById('tbody').innerHTML=rows.map(function(r){
+    var u=umur(r);
+    return '<tr class="row" data-id="'+esc(r.IDPEL)+'"><td>'+esc(r.IDPEL)+'</td><td>'+esc(r.NAMA)+'<div class="mut">'+esc(r.ALAMAT)+'</div></td><td>'+esc(r.RBM)+'</td><td>'+(jenis(r)?jenis(r).slice(0,3)==='PRA'?'Pra':'Pasca':'-')+'</td><td>'+esc(r['NOMOR METER'])+'</td><td>'+(u===null?'-':u+' th')+'</td><td>'+badge(st(r))+'</td><td class="mut">'+esc(r['TGL UPDATE'])+'</td></tr>';
+  }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('tr.row'),function(tr){
+    tr.onclick=function(){openDetail(tr.getAttribute('data-id'));};
+  });
+  document.getElementById('btnMore').style.display=FIL.length>shown?'':'none';
+}
+function renderMap(){
+  if(!map){
+    map=L.map('map').setView([-1.23,116.70],11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
+    cluster=L.markerClusterGroup({chunkedLoading:true});map.addLayer(cluster);
+  }
+  cluster.clearLayers();
+  var pts=[];
+  FIL.forEach(function(r){
+    var la=num(r.LAT),ln=num(r.LNG);
+    if(la===null||ln===null||la<-90||la>90) return;
+    var col=getComputedStyle(document.documentElement).getPropertyValue('--'+st(r)).trim();
+    var m=L.circleMarker([la,ln],{radius:8,color:'#0b1220',weight:1,fillColor:col,fillOpacity:.95});
+    m.bindPopup('<b>'+esc(r.NAMA)+'</b><br>'+esc(r.IDPEL)+'<br>'+badge(st(r))+'<br><a href="#" data-id="'+esc(r.IDPEL)+'" class="pp">Detail</a>');
+    m.on('popupopen',function(e){
+      var a=e.popup.getElement().querySelector('.pp');
+      if(a) a.onclick=function(ev){ev.preventDefault();openDetail(a.getAttribute('data-id'));};
+    });
+    cluster.addLayer(m);pts.push([la,ln]);
+  });
+  if(pts.length) map.fitBounds(pts,{padding:[30,30],maxZoom:16});
+}
+function renderRekap(){
+  var total=FIL.length||1,cs={},ck={},rb={},cj={};
+  STATUS.forEach(function(s){cs[s]=0;});
+  FIL.forEach(function(r){
+    var s=st(r),k=kat(r),b=r.RBM||'-';
+    cs[s]++;ck[k]=(ck[k]||0)+1;var jj=jenis(r)||'Belum diisi';cj[jj]=(cj[jj]||0)+1;
+    rb[b]=rb[b]||{t:0,s:0,k:0};rb[b].t++;
+    if(s==='SELESAI')rb[b].s++;if(s==='KENDALA')rb[b].k++;
+  });
+  function line(label,n,color){
+    return '<div style="display:grid;grid-template-columns:110px 1fr 60px;gap:8px;align-items:center;margin:6px 0"><span>'+esc(label)+'</span><div class="bar"><i style="width:'+(n/total*100)+'%;background:'+color+'"></i></div><span class="mut">'+n+'</span></div>';
+  }
+  document.getElementById('rkStatus').innerHTML=STATUS.map(function(s){return line(s,cs[s],'var(--'+s+')');}).join('');
+  document.getElementById('rkJenis').innerHTML=Object.keys(cj).sort().map(function(k){return line(k,cj[k],'var(--acc)');}).join('');
+  document.getElementById('rkUmur').innerHTML=Object.keys(ck).sort(function(a,b){return katKey(a)-katKey(b);}).map(function(k){return line(k,ck[k],'var(--acc)');}).join('');
+  document.getElementById('rkRbm').innerHTML=Object.keys(rb).sort().map(function(b){
+    var x=rb[b],p=Math.round(x.s/x.t*100);
+    return '<tr><td>'+esc(b)+'</td><td>'+x.t+'</td><td>'+x.s+'</td><td>'+x.k+'</td><td><div style="display:flex;gap:8px;align-items:center"><div class="bar" style="flex:1"><i style="width:'+p+'%;background:var(--SELESAI)"></i></div><span class="mut">'+p+'%</span></div></td></tr>';
+  }).join('');
+}
+
+/* ====== DETAIL & SIMPAN ====== */
+function openDetail(id){
+  var r=DATA.filter(function(x){return x.IDPEL===id;})[0];if(!r) return;
+  var u=umur(r),la=num(r.LAT),ln=num(r.LNG),f=fotoUrl(r.FOTO),f2=fotoUrl(r['FOTO 2']);
+  var gm=(la!==null&&ln!==null)?'<a href="https://www.google.com/maps?q='+la+','+ln+'" target="_blank" rel="noopener">Buka di Google Maps</a>':'<span class="mut">koordinat belum ada</span>';
+  var h='';
+  [f,f2].forEach(function(x,i){
+    if(x) h+='<img class="foto" src="'+esc(x)+'" alt="foto '+(i+1)+'" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'">';
+  });
+  h+='<h2>'+esc(r.NAMA)+'</h2><div class="mut">'+esc(r.IDPEL)+'</div>';
+  h+='<dl class="dl"><dt>Alamat</dt><dd>'+esc(r.ALAMAT)+'</dd><dt>Jenis</dt><dd>'+esc(jenis(r)||'-')+'</dd><dt>RBM</dt><dd>'+esc(r.RBM)+'</dd><dt>No. meter</dt><dd>'+esc(r['NOMOR METER'])+'</dd><dt>Tahun meter</dt><dd>'+esc(r['TAHUN METER'])+(u!==null?' ('+u+' th)':'')+' | '+esc(kat(r))+'</dd><dt>Lokasi</dt><dd>'+gm+'</dd><dt>Foto</dt><dd>'+((r.FOTO||r['FOTO 2'])?(r.FOTO?'<a href="'+esc(r.FOTO)+'" target="_blank" rel="noopener">Foto 1</a> ':'')+(r['FOTO 2']?'<a href="'+esc(r['FOTO 2'])+'" target="_blank" rel="noopener">Foto 2</a>':''):'<span class="mut">belum ada</span>')+'</dd><dt>Update</dt><dd>'+esc(r['TGL UPDATE']||'-')+(r.PETUGAS?' oleh '+esc(r.PETUGAS):'')+'</dd></dl>';
+  h+='<div class="frm"><div class="row2"><div><label>Status</label><select id="fS" style="width:100%">'+STATUS.map(function(s){return '<option'+(s===st(r)?' selected':'')+'>'+s+'</option>';}).join('')+'</select></div><div><label>Petugas</label><input id="fP" style="width:100%" value="'+esc(localStorage.getItem('pt_petugas')||r.PETUGAS||'')+'"></div></div>';
+  h+='<div><label>Keterangan</label><textarea id="fK" rows="2" style="width:100%">'+esc(r.KETERANGAN)+'</textarea></div>';
+  h+='<div><label>PIN</label><input id="fPin" type="password" style="width:100%" value="'+esc(localStorage.getItem('pt_pin')||'')+'"></div>';
+  h+='<div class="msg" id="msg"></div><div style="display:flex;gap:8px;justify-content:flex-end"><button id="bClose">Tutup</button><button class="pri" id="bSave">Simpan</button></div></div>';
+  document.getElementById('box').innerHTML=h;
+  document.getElementById('modal').style.display='block';
+  document.getElementById('bClose').onclick=closeModal;
+  document.getElementById('bSave').onclick=function(){save(r);};
+}
+function closeModal(){document.getElementById('modal').style.display='none';}
+function save(r){
+  var msg=document.getElementById('msg'),body={
+    idpel:r.IDPEL,status:document.getElementById('fS').value,
+    keterangan:document.getElementById('fK').value,petugas:document.getElementById('fP').value.trim(),
+    pin:document.getElementById('fPin').value
+  };
+  localStorage.setItem('pt_petugas',body.petugas);localStorage.setItem('pt_pin',body.pin);
+  if(!body.petugas){msg.textContent='Isi nama petugas dulu.';return;}
+  function apply(tgl){
+    r.STATUS=body.status;r.KETERANGAN=body.keterangan;r.PETUGAS=body.petugas;r['TGL UPDATE']=tgl;
+    closeModal();renderKpi();applyFilters();
+  }
+  if(!CONFIG.API_URL){apply('demo');return;}
+  msg.textContent='menyimpan...';
+  document.getElementById('bSave').disabled=true;
+  fetch(CONFIG.API_URL,{method:'POST',body:JSON.stringify(body)}).then(function(x){return x.json();}).then(function(j){
+    if(!j.ok){msg.textContent='Gagal: '+j.error;document.getElementById('bSave').disabled=false;return;}
+    apply(j.tgl);
+  }).catch(function(e){msg.textContent='Gagal: '+e.message;document.getElementById('bSave').disabled=false;});
+}
+
+/* ====== EVENT ====== */
+document.getElementById('q').oninput=applyFilters;
+['fRbm','fJenis','fKat','fFoto'].forEach(function(id){document.getElementById(id).onchange=applyFilters;});
+document.getElementById('btnMore').onclick=function(){shown+=PAGE;renderList();};
+document.getElementById('btnReload').onclick=load;
+document.getElementById('modal').onclick=function(e){if(e.target.id==='modal')closeModal();};
+Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(t){
+  t.onclick=function(){
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'),function(x){x.classList.remove('on');});
+    Array.prototype.forEach.call(document.querySelectorAll('.view'),function(x){x.classList.remove('on');});
+    t.classList.add('on');document.getElementById('v-'+t.getAttribute('data-v')).classList.add('on');
+    if(t.getAttribute('data-v')==='map'){renderMap();setTimeout(function(){map.invalidateSize();},50);}
+  };
+});
+load();
+</script>
+</body>
+</html>
