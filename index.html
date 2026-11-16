@@ -140,6 +140,21 @@ var map = null, cluster = null;
 /* ====== UTIL ====== */
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function num(v){var n=parseFloat(String(v==null?'':v).replace(',','.'));return isFinite(n)?n:null;}
+/* Koordinat: tangani angka yang titik desimalnya rusak jadi pemisah ribuan (mis. -1,508,421,111) */
+function coord(v,ip,lo,hi){
+  var s=String(v==null?'':v).trim();
+  if(!s) return null;
+  var neg=s.charAt(0)==='-',n;
+  if((s.match(/[.,]/g)||[]).length>1){
+    var d=s.replace(/\D/g,'');
+    n=parseFloat(d.slice(0,ip)+'.'+d.slice(ip));
+  } else n=parseFloat(s.replace(',','.'));
+  if(!isFinite(n)) return null;
+  n=neg?-Math.abs(n):n;
+  return (n>=lo&&n<=hi)?n:null;
+}
+function latOf(r){return coord(r.LAT,1,-11,6);}
+function lngOf(r){return coord(r.LNG,3,94,142);}
 function driveId(u){
   u=String(u||'');var m=u.match(/\/d\/([\w-]+)/)||u.match(/[?&]id=([\w-]+)/);
   return m?m[1]:'';
@@ -264,7 +279,7 @@ function renderMap(){
   cluster.clearLayers();
   var pts=[];
   FIL.forEach(function(r){
-    var la=num(r.LAT),ln=num(r.LNG);
+    var la=latOf(r),ln=lngOf(r);
     if(la===null||ln===null||la<-90||la>90) return;
     var col=getComputedStyle(document.documentElement).getPropertyValue('--'+st(r)).trim();
     var m=L.circleMarker([la,ln],{radius:8,color:'#0b1220',weight:1,fillColor:col,fillOpacity:.95});
@@ -301,7 +316,7 @@ function renderRekap(){
 /* ====== DETAIL & SIMPAN ====== */
 function openDetail(id){
   var r=DATA.filter(function(x){return x.IDPEL===id;})[0];if(!r) return;
-  var u=umur(r),la=num(r.LAT),ln=num(r.LNG),f=fotoUrl(r.FOTO),f2=fotoUrl(r['FOTO 2']);
+  var u=umur(r),la=latOf(r),ln=lngOf(r),f=fotoUrl(r.FOTO),f2=fotoUrl(r['FOTO 2']);
   var gm=(la!==null&&ln!==null)?'<a href="https://www.google.com/maps?q='+la+','+ln+'" target="_blank" rel="noopener">Buka di Google Maps</a>':'<span class="mut">koordinat belum ada</span>';
   var h='';
   [f,f2].forEach(function(x,i){
